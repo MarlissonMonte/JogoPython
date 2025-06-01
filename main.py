@@ -1,224 +1,321 @@
 import pgzrun
 import random
-import math
-from pygame import Rect  # unico modulo permitido do pygame
+from pygame import Rect
 
+# Configurações principais
+WIDTH = 1000  # Largura está fixa em 1000 pixels
+HEIGHT = 600  # Altura está fixa em 600 pixels
 
-WIDTH = 1000
-HEIGHT = 600
+class Game:
+    def __init__(self):
+        self.SOUND_ON = True
+        self.game_state = "MENU"  # MENU, PLAYING
+        self.score = 0 #Pontuacao do Herói 
+        self.lives = 3 #Vida padrão do Herói ao iniciar o jogo
+        self.setup_game_elements()
+        
+    def setup_game_elements(self):
+        # Configuração do cenário
+        self.floor = Rect((0, 580), (WIDTH, 20))
+        self.platforms = [
+            self.floor,
+            Rect((450, 500), (100, 10)),
+            Rect((300, 400), (100, 10)),
+            Rect((600, 400), (100, 10)),
+            Rect((200, 300), (100, 10)),
+            Rect((700, 300), (100, 10)),
+            Rect((100, 200), (100, 10)),
+            Rect((800, 200), (100, 10)),
+            Rect((10, 100), (100, 10)),
+            Rect((890, 100), (100, 10)),
+            Rect((100, 400), (100, 10)),
+            Rect((800, 400), (100, 10)),
+            Rect((450, 300), (100, 10))
+        ]
+        
+        # Cores
+        self.ground_color = (80, 70, 55) 
+        self.floor_color = (21, 24, 38)
+        
+        # Posições das moedas
+        self.coin_positions = [
+            (950, 70), (50, 70), (850, 170), (150, 170),
+            (750, 270), (250, 270), (650, 370), (350, 370), (500, 470)
+        ]
+        
+        # Configuração inicial do áudio
+        music.set_volume(1 if self.SOUND_ON else 0)
+        music.play('background_music')
+    
+    def toggle_sound(self):
+        self.SOUND_ON = not self.SOUND_ON
+        music.set_volume(1 if self.SOUND_ON else 0)
+        return "Sons: " + ("ON" if self.SOUND_ON else "OFF")
+    
+    def start_game(self):
+        self.game_state = "PLAYING"
+        self.score = 0
+        self.lives = 3
+    
+    def draw_menu(self):
+        screen.fill((0, 69, 56))
+        
+        # Título do jogo
+        screen.draw.text("HEROI DA SELVA", 
+                        center=(WIDTH/2, 100), 
+                        fontsize=60, 
+                        color=(255, 255, 255),
+                        shadow=(1, 1))
+        
+        # Botões
+        button_y = HEIGHT/2
+        screen.draw.filled_rect(Rect((WIDTH/2-100, button_y-70), (200, 40)), (50, 50, 50))
+        screen.draw.text("Iniciar Jogo", center=(WIDTH/2, button_y-50), fontsize=30, color=(255, 255, 255))
+        
+        screen.draw.filled_rect(Rect((WIDTH/2-100, button_y), (200, 40)), (50, 50, 50))
+        screen.draw.text("Sons: ON" if self.SOUND_ON else "Sons: OFF", center=(WIDTH/2, button_y+20), fontsize=30, color=(255, 255, 255))
+        
+        screen.draw.filled_rect(Rect((WIDTH/2-100, button_y+70), (200, 40)), (50, 50, 50))
+        screen.draw.text("Sair", center=(WIDTH/2, button_y+90), fontsize=30, color=(255, 255, 255))
+        
+        # Rodapé
+        
+        screen.draw.text("Desenvolvido por Marlisson Anjos", 
+                        center=(WIDTH/2, HEIGHT-60), 
+                        fontsize=20, 
+                        color=(150, 150, 150))
 
-#Ativar o som
-SOUND_ON = True
+class Hero:
+    def __init__(self):
+        self.actor = Actor('player.gif', (500, 250))
+        self.x_velocity = 0
+        self.y_velocity = 0
+        self.gravity = 1
+        self.jumping = False
+        self.jumped = False
+        self.images = {
+            'idle': 'player',
+            'left': 'jumper-left',
+            'right': 'jumper-right',
+            'jump': 'jump'
+        }
+    
+    def update(self):
+        # Reset da imagem quando parado
+        if self.x_velocity == 0 and not self.jumped and not self.jumping:
+            self.actor.image = self.images['idle']
+        
+        # Movimentação horizontal
+        if keyboard.left:
+            if self.actor.x > 40 and self.x_velocity > -8:
+                self.x_velocity -= 2
+                self.actor.image = self.images['left']
+        if keyboard.right:
+            if self.actor.x < 960 and self.x_velocity < 8:
+                self.x_velocity += 2
+                self.actor.image = self.images['right']
+        
+        self.actor.x += self.x_velocity
+        
+        # Física (atrito)
+        if self.x_velocity > 0:
+            self.x_velocity -= 1
+        if self.x_velocity < 0:
+            self.x_velocity += 1
+            
+        # Gravidade e pulo
+        if self.collidecheck():
+            self.gravity = 1
+            self.actor.y -= 1
+        else:
+            self.actor.y += self.gravity
+            if self.gravity <= 20:
+                self.gravity += 0.5
+        
+        # Pulo
+        if keyboard.up and self.collidecheck() and not self.jumped:
+            if game.SOUND_ON:
+                sounds.jump.play()
+            self.jumping = True
+            self.jumped = True
+            clock.schedule_unique(self.set_jumped_false, 0.4)
+            self.actor.image = self.images['jump']
+            self.y_velocity = 95
+            
+        if self.jumping and self.y_velocity > 25:
+            self.y_velocity = self.y_velocity - ((100 - self.y_velocity)/2)
+            self.actor.y -= self.y_velocity/3 
+        else: 
+            self.y_velocity = 0
+            self.jumping = False
+    
+    def set_jumped_false(self):
+        self.jumped = False
+        
+    def collidecheck(self):
+        for platform in game.platforms:
+            if self.actor.colliderect(platform):
+                return True
+        return False
+    
+    def draw(self):
+        self.actor.draw()
 
-#Carregar o som ou música
-music.set_volume(0) #volume da música
-music.play('background_music') #música 
+class Coin:
+    def __init__(self):
+        self.actor = Actor('coin_1.gif')
+        self.reset_position()
+        
+    def reset_position(self):
+        pos = random.choice(game.coin_positions)
+        self.actor.pos = pos
+    
+    def draw(self):
+        self.actor.draw()
 
-floor = Rect((0, 580),(1000, 20))
-groundcolour = 80,70,55
-groundcolour_x = 21,24,38,255
+class Enemy:
+    def __init__(self, enemy_type):
+        self.type = enemy_type
+        self.setup_enemy()
+        
+    def setup_enemy(self):
+        if self.type == "flying":
+            self.images = ['eyes_monster1', 'eyes_monster2', 'eyes_monster3',
+                         'eyes_monster4', 'eyes_monster5', 'eyes_monster6', 'eyes_monster7']
+            self.actor = Actor(self.images[0], (0, 100))
+            self.speed = 3
+            self.direction = 1
+        else:  # ground enemy
+            self.images = ['dragon1', 'dragon1.1', 'dragon2', 'dragon3',
+                          'dragon4', 'dragon5', 'dragon6', 'dragon7', 'dragon8']
+            self.actor = Actor(self.images[0], (0, 550))
+            self.speed = 1.5
+            self.direction = 1
+            
+        self.frame = 0
+        self.animation_speed = 0.2 if self.type == "flying" else 0.1
+        self.is_alive = True
+        
+    def update(self):
+        self.animate()
+        self.move()
+    
+    def animate(self):
+        self.frame += self.animation_speed
+        if self.frame >= len(self.images):
+            self.frame = 0
+        self.actor.image = self.images[int(self.frame)]
+    
+    def move(self):
+        self.actor.x += self.speed * self.direction
 
+        if self.type == "flying":
+            if self.actor.x > WIDTH:
+                self.direction = -1
+                self.actor.y += 20
+            elif self.actor.x < 0:
+                self.direction = 1
+                
+            if self.actor.y < 50:
+                self.actor.y = 50
+            elif self.actor.y > 150:
+                self.actor.y = 100
+        else:
+            if self.direction == -1:
+                self.actor.flip_x = True
+            else:
+                self.actor.flip_x = False
+                
+            if self.actor.right > WIDTH:
+                self.direction = -1
+            elif self.actor.left < 0:
+                self.direction = 1
+                
+            self.actor.y = 550
+    
+    def draw(self):
+        self.actor.draw()
 
-#heroi
-hero = Actor('player.gif', (500, 250))
-hero_x_velocity = 0
-hero_y_velocity = 0
-gravity = 1
-jumping = False
-jumped = False
-lives = 3
-
-
-#plataformas
-
-platform1 = Rect((450, 500), (100,10))
-platform2 = Rect((300, 400), (100,10))
-platform3 = Rect((600, 400), (100,10))
-platform4 = Rect((200, 300), (100,10))
-platform5 = Rect((700, 300), (100,10))
-platform6 = Rect((100, 200), (100,10))
-platform7 = Rect((800, 200), (100,10))
-platform8 = Rect((10, 100), (100,10))
-platform9 = Rect((890, 100), (100,10))
-platform10 = Rect((100, 400), (100,10))
-platform11 = Rect((800, 400), (100,10))
-platform12 = Rect((450, 300), (100,10))
-
-platforms = [floor,platform1,platform2,platform3,platform4,platform5,platform6,platform7,platform8,platform9,platform10,platform11,platform12]
-
-#moedas
-
-coin_x = [950,50,850,150,750,250,650,350,500]
-coin_y = [70,70,170,170,270,270,370,370,470]
-c_xy = random.randint(0,8)
-coin = Actor('coin_1.gif', (coin_x[c_xy], coin_y[c_xy]))
-points = 0
-
-#monstro voador
-eyes_monster_images = ['eyes_monster1','eyes_monster2','eyes_monster3','eyes_monster4','eyes_monster5','eyes_monster6','eyes_monster7']
-eyes_monster = Actor(eyes_monster_images[0], (0,100))
-eyes_monster.speed = 3
-eyes_monster.direction = 1
-eyes_monster.frame = 0
-eyes_monster.animation_speed = 0.2
-
-#monstro terrestre
-dragon_images = ['dragon1','dragon1.1','dragon2','dragon3','dragon4','dragon5','dragon6','dragon7','dragon8']
-dragon = Actor(dragon_images[0], (0,550))
-dragon.speed = 1.5
-dragon.direction = 1
-dragon.frame = 0
-dragon.animation_speed = 0.1
-dragon.is_alive = True
-
-#versao onde as plataformas ficam dinamicas>
+# Inicialização do jogo
+game = Game()
+hero = Hero()
+coin = Coin()
+enemies = [Enemy("flying"), Enemy("ground")]
 
 def update():
-    hero_move()
-    update_eyes_monster()
-    update_dragon()
-
-    if hero.colliderect(eyes_monster) or hero.colliderect(dragon):
-        sounds.death.play()
-        reset_hero_position()
-
-def update_eyes_monster():
-
-    eyes_monster.frame += eyes_monster.animation_speed
-    if eyes_monster.frame >= len(eyes_monster_images):
-        eyes_monster.frame = 0
-    eyes_monster.image = eyes_monster_images[int(eyes_monster.frame)]
-
-    eyes_monster.x += eyes_monster.speed * eyes_monster.direction
-
-    if eyes_monster.x > WIDTH:
-        eyes_monster.direction =-1
-        eyes_monster.y += 20
-    elif eyes_monster.x < 0:
-        eyes_monster.direction = 1
-    if eyes_monster.y <50:
-        eyes_monster.y = 50
-    elif eyes_monster.y >150:
-        eyes_monster.y =100
-
-def reset_hero_position():
-    global points, lives
-    hero.x = 500
-    hero.y = 250
-    points = max(0, points - 1)
-    lives -= 1
-    if lives <= 0:
-        points = 0
-        lives = 3 
-
-
-def update_dragon():
-    if not dragon.is_alive:
-        return
-    dragon.frame += dragon.animation_speed
-    if dragon.frame >= len(dragon_images):
-        dragon.frame = 0
-    dragon.image = dragon_images[int(dragon.frame)]
-
-    dragon.x += dragon.speed * dragon.direction
-
-    if dragon.direction == -1:
-        dragon.flip_x = True
-    else:
-        dragon.flip_x = False
-    
-    if dragon.right > WIDTH:
-        dragon.direction = -1
-    elif dragon.left < 0:
-        dragon.direction = 1
-    
-    dragon.y =550
-
-def hero_move():
-    global hero_x_velocity, hero_y_velocity, jumping, gravity, jumped, points, c_xy
-
-    if hero_x_velocity == 0 and not jumped:
-        hero.image = 'player'
-    
-    if collidecheck():
-        gravity = 1
-        hero.y -=1
-    if not collidecheck():
-        hero.y += gravity
-        if gravity <= 20:
-            gravity += 0.5
-
-    if (keyboard.left):
-        if (hero.x > 40) and (hero_x_velocity > -8):
-            hero_x_velocity -= 2
-            hero.image = 'jumper-left'
-    if (keyboard.right):
-        if (hero.x < 960) and (hero_x_velocity < 8):
-            hero_x_velocity += 2
-            hero.image = 'jumper-right'
-
-    hero.x += hero_x_velocity
-
-    #velocidade
-    if hero_x_velocity > 0:
-        hero_x_velocity -=1
-    if hero_x_velocity < 0:
-        hero_x_velocity +=1 
-    if hero.x < 50 or hero.x >950:
-        hero_x_velocity = 0
-
-    #pulando
-    if (keyboard.up) and collidecheck() and not jumped:
-        sounds.jump.play()
-        jumping = True
-        jumped = True
-        clock.schedule_unique(jumpedrecently, 0.4)
-        hero.image = 'jump'
-        hero_y_velocity = 95
-    if jumping and hero_y_velocity > 25:
-        hero_y_velocity = hero_y_velocity - ((100 - hero_y_velocity)/2)
-        hero.y -= hero_y_velocity/3 
-    else: 
-        hero_y_velocity = 0
-        jumping = False
-    
-    #pegar moedas
-
-    if hero.colliderect(coin):
-        sounds.coin.play()
-        points += 1 
-        old_c_xy = c_xy
-        c_xy = random.randint(0,8)
-        while old_c_xy == c_xy:
-            c_xy = random.randint(0,8)
-        c_xy = random.randint(0,8)
-        coin.x = coin_x[c_xy]
-        coin.y = coin_y[c_xy]
+    if game.game_state == "PLAYING":
+        hero.update()
+        for enemy in enemies:
+            enemy.update()
+            
+        # Colisão com moeda
+        if hero.actor.colliderect(coin.actor):
+            if game.SOUND_ON:
+                sounds.coin.play()
+            game.score += 1
+            coin.reset_position()
+            
+        # Colisão com inimigos
+        for enemy in enemies:
+            if hero.actor.colliderect(enemy.actor):
+                if game.SOUND_ON:
+                    sounds.death.play()
+                reset_hero_position()
 
 def draw():
-    screen.fill((173, 216, 255))
-    screen.blit('floresta', (0,00))
-    for i in platforms:
-        screen.draw.filled_rect(i, groundcolour)
-    screen.draw.filled_rect(floor, groundcolour_x)
-    hero.draw()
-    coin.draw()
-    eyes_monster.draw()
-    dragon.draw()
-    screen.draw.text("Pontos:", center=(60,30), fontsize=30, shadow=(1,1), color=(255,255,255), scolor='#202020')
-    screen.draw.text(str(points), center=(110,30), fontsize=30, shadow=(1,1), color=(255,255,255), scolor='#202020')
-    screen.draw.text("Vidas:", center=(200,30), fontsize=30, shadow=(1,1), color=(255,255,255), scolor='#202020')
-    screen.draw.text(str(lives), center=(250,30), fontsize=30, shadow=(1,1), color=(255,255,255), scolor='#202020')
+    if game.game_state == "MENU":
+        game.draw_menu()
+    else:
+        # Desenhar o jogo
+        screen.blit('floresta', (0, 0))
+        
+        # Plataformas
+        for platform in game.platforms:
+            color = game.ground_color if platform != game.floor else game.floor_color
+            screen.draw.filled_rect(platform, color)
+        
+        # Itens e personagens
+        coin.draw()
+        hero.draw()
+        for enemy in enemies:
+            enemy.draw()
+        
+        # HUD
+        screen.draw.text(f"Pontos: {game.score}", 
+                        topleft=(20, 20), 
+                        fontsize=30, 
+                        color=(255, 255, 255),
+                        shadow=(1, 1))
+        
+        screen.draw.text(f"Vidas: {game.lives}", 
+                        topleft=(200, 20), 
+                        fontsize=30,
+                        color=(255, 255, 255),
+                        shadow=(1, 1))
 
+def on_mouse_down(pos):
+    if game.game_state == "MENU":
+        button_y = HEIGHT/2
+        if WIDTH/2-100 <= pos[0] <= WIDTH/2+100:
+            if button_y-70 <= pos[1] <= button_y-30:  # Iniciar Jogo
+                game.start_game()
+            elif button_y <= pos[1] <= button_y+40:  # Sons
+                game.toggle_sound()
+            elif button_y+70 <= pos[1] <= button_y+110:  # Sair
+                exit()
 
-def collidecheck():
-    collide = False
+def on_key_down(key):
+    if key == keys.ESCAPE:
+        if game.game_state == "PLAYING":
+            game.game_state = "MENU"
+        else:
+            exit()
 
-    for i in platforms:
-        if hero.colliderect(i):
-            collide = True
-    return collide
+def reset_hero_position():
+    hero.actor.pos = (500, 250)
+    game.score = max(0, game.score - 1)
+    game.lives -= 1
+    if game.lives <= 0:
+        game.game_state = "MENU"
 
-def jumpedrecently():
-    global jumped
-    jumped = False
+pgzrun.go()
